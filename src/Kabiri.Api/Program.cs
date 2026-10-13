@@ -2,6 +2,8 @@ using Kabiri.Application;
 using Kabiri.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(o => o.SwaggerDoc("v1", new() { Title = "Kabiri Sensor Ingestion API", Version = "v1" }));
 builder.Services.AddSingleton(_ =>
 {
     var dbPath = Path.Combine(builder.Environment.ContentRootPath, "kabiri.db");
@@ -46,6 +48,10 @@ app.MapGet("/api/aggregates", (IResultStore results, string deviceId, string met
         .Select(c => c.Reading);
     return AggregationService.Aggregate(acceptable, from, to, bucketSeconds);
 });
-app.MapGet("/", () => "Kabiri Sensor Ingestion API. POST /api/process, GET /api/aggregates, GET /api/alerts");
+app.MapGet("/", () => "Kabiri Sensor Ingestion API. POST /api/process, GET /api/aggregates, GET /api/alerts")
+    .ExcludeFromDescription();
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.Run();
