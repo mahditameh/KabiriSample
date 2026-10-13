@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Kabiri.Api/Kabiri.Api.csproj" />
+    <Project Path="src/Kabiri.Application/Kabiri.Application.csproj" />
+    <Project Path="src/Kabiri.Domain/Kabiri.Domain.csproj" />
+    <Project Path="src/Kabiri.Infrastructure/Kabiri.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kabiri.Tests/Kabiri.Tests.csproj" />
+  </Folder>
+</Solution>
