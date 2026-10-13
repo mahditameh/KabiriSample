@@ -9,6 +9,7 @@ dotnet build
 dotnet test
 dotnet run --project src/Kabiri.Api
 # API: http://localhost:5121
+# Swagger UI: http://localhost:5121/swagger
 # POST /api/process?file=<path>  — re-process (idempotent)
 # GET  /api/aggregates?deviceId=PUMP-02&metric=temperature&from=2025-06-01T08:00:00Z&to=2025-06-01T09:00:00Z&bucketSeconds=60
 # GET  /api/alerts
