@@ -3,6 +3,18 @@ using Microsoft.Extensions.Logging;
 
 namespace Kabiri.Application;
 
+/// <summary>Counts printed at the end of processing; numbers always reflect the real input.</summary>
+/// <param name="TotalLines">Non-blank lines read from the file.</param>
+/// <param name="Parsed">Lines that parsed AND passed semantic validation.</param>
+/// <param name="Stored">Newly stored readings this run (0 on idempotent re-run).</param>
+/// <param name="Duplicates">Lines skipped as duplicate (deviceId, metric, ts, seq) — first-wins.</param>
+/// <param name="Invalid">Malformed or semantically invalid lines rejected without crashing.</param>
+/// <param name="RulesLoaded">Enabled + disabled rules loaded from rules.json.</param>
+/// <param name="Evaluations">Stateless rule evaluations performed this run (new readings only).</param>
+/// <param name="Acceptable">Total acceptable readings in store (cumulative).</param>
+/// <param name="Unacceptable">Total unacceptable readings in store (cumulative).</param>
+/// <param name="Violations">Total stateless rule violations in store (cumulative).</param>
+/// <param name="Alerts">Total alerts in store (cumulative).</param>
 public sealed record ProcessingReport(
     int TotalLines, int Parsed, int Stored, int Duplicates, int Invalid,
     int RulesLoaded, int Evaluations, int Acceptable, int Unacceptable,
