@@ -1,0 +1,10 @@
+[
+  { "id": "overheat-sustained", "name": "Overheating Sustained", "metric": "temperature", "deviceId": "PUMP-01", "operator": "SustainedAbove", "threshold": 80, "durationSeconds": 30, "cooldownSeconds": 300, "enabled": true },
+  { "id": "pump02-heat-sustained", "name": "PUMP-02 Heat Sustained", "metric": "temperature", "deviceId": "PUMP-02", "operator": "SustainedAbove", "threshold": 72, "durationSeconds": 60, "cooldownSeconds": 300, "enabled": true },
+  { "id": "temp-high", "name": "Temperature High", "metric": "temperature", "deviceId": null, "operator": "GreaterThan", "threshold": 75, "enabled": true },
+  { "id": "temp-critical", "name": "Temperature Critical", "metric": "temperature", "deviceId": null, "operator": "GreaterThanOrEqual", "threshold": 90, "enabled": true },
+  { "id": "pressure-range", "name": "Pressure Normal Range", "metric": "pressure", "deviceId": null, "operator": "Between", "min": 4, "max": 10, "enabled": true },
+  { "id": "pressure-low", "name": "Pressure Too Low", "metric": "pressure", "deviceId": null, "operator": "LessThan", "threshold": 3, "enabled": false },
+  { "id": "vib-limit", "name": "Vibration Limit", "metric": "vibration", "deviceId": null, "operator": "LessThanOrEqual", "threshold": 5, "enabled": true },
+  { "id": "vib-zero-check", "name": "Vibration Zero Check", "metric": "vibration", "deviceId": "PUMP-01", "operator": "Equal", "expected": 0, "tolerance": 0.01, "enabled": false }
+]
