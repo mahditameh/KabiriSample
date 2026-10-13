@@ -1,5 +1,6 @@
 ﻿using Kabiri.Application;
 using Kabiri.Domain;
+using Kabiri.Infrastructure;
 
 namespace Kabiri.Tests;
 
@@ -137,5 +138,30 @@ public class AggregationTests
         Assert.Equal(2, buckets[0].Count); Assert.Equal(15, buckets[0].Avg);
         Assert.Equal(30, buckets[1].Avg);
         // empty bucket omitted by design
+    }
+}
+
+public class SqliteIdempotencyTests : IDisposable
+{
+    private readonly string _db = Path.Combine(Path.GetTempPath(), $"kabiri-test-{Guid.NewGuid():N}.db");
+    public void Dispose() { try { File.Delete(_db); } catch { } }
+
+    [Fact]
+    public void ReRun_SameFile_RealDb_StoresNothingNew()
+    {
+        var store = new SqliteStores(_db);
+        var svc = new ProcessingService(store, store, store);
+        var rules = new List<Rule> { new("r1", "r1", true, "temperature", null, RuleOperator.GreaterThan, Threshold: 75) };
+        var lines = new[]
+        {
+            """{"deviceId":"P1","metric":"temperature","ts":"2025-06-01T08:00:00Z","value":80,"seq":1}""",
+            """{"deviceId":"P1","metric":"temperature","ts":"2025-06-01T08:00:00Z","value":80,"seq":1}""",
+        };
+        var r1 = svc.ProcessLines(lines, rules);
+        var r2 = svc.ProcessLines(lines, rules);
+        Assert.Equal(1, r1.Stored);
+        Assert.Equal(0, r2.Stored); // UNIQUE constraint → idempotent, verified on real SQLite
+        Assert.Equal(r1.Acceptable, r2.Acceptable);
+        Assert.Equal(r1.Alerts, r2.Alerts);
     }
 }

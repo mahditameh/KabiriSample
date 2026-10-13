@@ -28,22 +28,10 @@ public sealed class SqliteStores : IReadingStore, IResultStore, IAlertStore
         cmd.ExecuteNonQuery();
     }
 
-    // IReadingStore
-    public bool TryAdd(Reading r)
-    {
-        try
-        {
-            using var c = Open();
-            using var cmd = c.CreateCommand();
-            cmd.CommandText = "INSERT INTO readings(key,device,metric,ts,value,seq) VALUES($k,$d,$m,$t,$v,$s)";
-            cmd.Parameters.AddWithValue("$k", r.Key); cmd.Parameters.AddWithValue("$d", r.DeviceId);
-            cmd.Parameters.AddWithValue("$m", r.Metric); cmd.Parameters.AddWithValue("$t", r.Ts.ToString("O"));
-            cmd.Parameters.AddWithValue("$v", r.Value); cmd.Parameters.AddWithValue("$s", r.Seq);
-            cmd.ExecuteNonQuery();
-            return true;
-        }
-        catch (SqliteException ex) when (ex.SqliteErrorCode == 19) { return false; } // UNIQUE → duplicate/idempotent
-    }
+    public bool TryAdd(Reading r) => TryInsert(
+        "INSERT INTO readings(key,device,metric,ts,value,seq) VALUES($k,$d,$m,$t,$v,$s)",
+        ("$k", r.Key), ("$d", r.DeviceId), ("$m", r.Metric),
+        ("$t", r.Ts.ToString("O")), ("$v", (object)r.Value), ("$s", r.Seq));
 
     IReadOnlyList<Reading> IReadingStore.All()
     {
@@ -63,37 +51,29 @@ public sealed class SqliteStores : IReadingStore, IResultStore, IAlertStore
     }
 
     // IResultStore (explicit to avoid All() clash)
-    bool IResultStore.TryAdd(Classification cl)
-    {
-        try
-        {
-            using var c = Open();
-            using var cmd = c.CreateCommand();
-            cmd.CommandText = "INSERT INTO results(rkey,acceptable,violations) VALUES($k,$a,$v)";
-            cmd.Parameters.AddWithValue("$k", cl.Reading.Key);
-            cmd.Parameters.AddWithValue("$a", cl.IsAcceptable ? 1 : 0);
-            cmd.Parameters.AddWithValue("$v", JsonSerializer.Serialize(cl.Violations));
-            cmd.ExecuteNonQuery();
-            return true;
-        }
-        catch (SqliteException ex) when (ex.SqliteErrorCode == 19) { return false; }
-    }
+    bool IResultStore.TryAdd(Classification cl) => TryInsert(
+        "INSERT INTO results(rkey,acceptable,violations) VALUES($k,$a,$v)",
+        ("$k", cl.Reading.Key), ("$a", cl.IsAcceptable ? 1 : 0),
+        ("$v", JsonSerializer.Serialize(cl.Violations)));
 
     IReadOnlyList<Classification> IResultStore.All() => LoadResults(null);
     public IReadOnlyList<Classification> Acceptable() => LoadResults(true);
 
     // IAlertStore
-    bool IAlertStore.TryAdd(Alert a)
+    bool IAlertStore.TryAdd(Alert a) => TryInsert(
+        "INSERT INTO alerts(key,rule,device,metric,startTs,endTs,peak) VALUES($k,$r,$d,$m,$s,$e,$p)",
+        ("$k", a.Key), ("$r", a.RuleId), ("$d", a.DeviceId), ("$m", a.Metric),
+        ("$s", a.StartTs.ToString("O")), ("$e", a.EndTs.ToString("O")), ("$p", (object)a.Peak));
+
+    /// <summary>Shared idempotent insert: UNIQUE violation → false (duplicate), not an error.</summary>
+    private bool TryInsert(string sql, params (string Name, object Value)[] parameters)
     {
         try
         {
             using var c = Open();
             using var cmd = c.CreateCommand();
-            cmd.CommandText = "INSERT INTO alerts(key,rule,device,metric,startTs,endTs,peak) VALUES($k,$r,$d,$m,$s,$e,$p)";
-            cmd.Parameters.AddWithValue("$k", a.Key); cmd.Parameters.AddWithValue("$r", a.RuleId);
-            cmd.Parameters.AddWithValue("$d", a.DeviceId); cmd.Parameters.AddWithValue("$m", a.Metric);
-            cmd.Parameters.AddWithValue("$s", a.StartTs.ToString("O")); cmd.Parameters.AddWithValue("$e", a.EndTs.ToString("O"));
-            cmd.Parameters.AddWithValue("$p", a.Peak);
+            cmd.CommandText = sql;
+            foreach (var (name, value) in parameters) cmd.Parameters.AddWithValue(name, value);
             cmd.ExecuteNonQuery();
             return true;
         }
@@ -141,20 +121,20 @@ public static class RulesJsonLoader
         var list = new List<Rule>();
         foreach (var el in doc.RootElement.EnumerateArray())
         {
-            string Get(string p) => el.TryGetProperty(p, out var x) ? x.GetString() ?? "" : "";
-            double? Num(string p) => el.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : null;
-            int? Int(string p) => el.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetInt32() : null;
-            string? Opt(string p) => el.TryGetProperty(p, out var x) ? x.ValueKind == JsonValueKind.Null ? null : x.GetString() : null;
-            var op = Enum.Parse<RuleOperator>(Get("operator"), true);
+            string Text(string p) => el.TryGetProperty(p, out var x) ? x.GetString() ?? "" : "";
+            double? Number(string p) => el.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetDouble() : null;
+            int? Whole(string p) => el.TryGetProperty(p, out var x) && x.ValueKind == JsonValueKind.Number ? x.GetInt32() : null;
+            string? Optional(string p) => el.TryGetProperty(p, out var x) ? x.ValueKind == JsonValueKind.Null ? null : x.GetString() : null;
+            var op = Enum.Parse<RuleOperator>(Text("operator"), true);
             list.Add(new Rule(
-                Id: Get("id"), Name: Opt("name") ?? Get("id"),
+                Id: Text("id"), Name: Optional("name") ?? Text("id"),
                 Enabled: !el.TryGetProperty("enabled", out var e) || e.GetBoolean(),
-                Metric: Get("metric"), DeviceId: Opt("deviceId"),
-                Operator: op, Threshold: Num("threshold"), Min: Num("min") ?? Num("minValue"),
-                Max: Num("max") ?? Num("maxValue"), Expected: Num("expected") ?? Num("value"),
-                Tolerance: Num("tolerance"),
-                DurationSeconds: Int("durationSeconds"),
-                CooldownSeconds: Int("cooldownSeconds") ?? 300));
+                Metric: Text("metric"), DeviceId: Optional("deviceId"),
+                Operator: op, Threshold: Number("threshold"), Min: Number("min") ?? Number("minValue"),
+                Max: Number("max") ?? Number("maxValue"), Expected: Number("expected") ?? Number("value"),
+                Tolerance: Number("tolerance"),
+                DurationSeconds: Whole("durationSeconds"),
+                CooldownSeconds: Whole("cooldownSeconds") ?? 300));
         }
         return list;
     }
